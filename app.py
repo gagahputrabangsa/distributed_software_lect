@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, redirect
 import cv2
 import numpy as np
-import os
+import requests
 
 app = Flask(__name__)
 
@@ -27,7 +27,7 @@ def upload_form():
     <body>
         <h1>Upload an Image for Age and Gender Prediction</h1>
         <form action="/predict" method="post" enctype="multipart/form-data">
-            <input type="file" name="file" accept="image/*" required>
+            <input type="file" name="image" accept="image/*" required>
             <button type="submit">Predict</button>
         </form>
     </body>
@@ -36,11 +36,11 @@ def upload_form():
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    if 'file' not in request.files:
+    if 'image' not in request.files:
         return jsonify({'error': 'No image uploaded'}), 400
 
     # Read the image from the request
-    file = request.files['file']
+    file = request.files['image']
     image = np.frombuffer(file.read(), np.uint8)
     frame = cv2.imdecode(image, cv2.IMREAD_COLOR)
 
@@ -52,8 +52,19 @@ def predict():
     faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
 
     if len(faces) == 0:
-        # Redirect to the vehicle recognition endpoint if no face is detected
-        return redirect('https://a64d-202-51-197-51.ngrok-free.app/recognize_vehicle')
+        # No face detected, redirect to external service with image
+        # Prepare the image for POST request
+        _, img_encoded = cv2.imencode('.jpg', frame)
+        img_bytes = img_encoded.tobytes()
+        
+        # Send the image to the external detection service
+        response = requests.post(
+            'https://f991-2001-448a-2061-2914-1904-f384-3882-47ff.ngrok-free.app/detect',
+            files={'image': ('image.jpg', img_bytes, 'image/jpeg')}
+        )
+        
+        # Return the response from the external service
+        return response.content
 
     results = []
 
